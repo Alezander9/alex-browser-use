@@ -9,6 +9,7 @@ import re
 import time
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Dict, Generic, List, Optional, TypeVar, Union
+from datetime import datetime
 
 from dotenv import load_dotenv
 from langchain_core.language_models.chat_models import BaseChatModel
@@ -544,6 +545,12 @@ class Agent(Generic[Context]):
 				except:
 					logger.warning(f'Failed to parse model output: {response["raw"].content} {str(e)}')
 					raise ValueError('Could not parse response.')
+				
+		# When logging is in debug mode, save the input_messages, response, and parsed to log files
+		if logger.isEnabledFor(logging.DEBUG):
+			log_dir = Path('logs') / str(self.state.agent_id)
+			log_dir.mkdir(parents=True, exist_ok=True)
+			self._log_step_details(log_dir, self.state.n_steps, input_messages, response, parsed)
 
 		if parsed is None:
 			raise ValueError('Could not parse response.')
@@ -555,6 +562,87 @@ class Agent(Generic[Context]):
 		log_response(parsed)
 
 		return parsed
+
+	def _log_step_details(
+		self,
+		log_dir: Path,
+		step_number: int,
+		input_messages: list[BaseMessage],
+		response: dict[str, Any],
+		parsed: Optional[AgentOutput]
+	) -> None:
+		"""Log detailed step information to files.
+		
+		Args:
+			log_dir: Directory to save log files
+			step_number: Current step number
+			input_messages: List of input messages
+			response: Raw response from the model
+			parsed: Parsed AgentOutput object
+		"""
+		timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+		header = f"Timestamp: {timestamp}\nStep: {step_number}\n{'-'*50}\n\n"
+		
+		# Format the output file with sections
+		with open(log_dir / f'step_{step_number}_output.txt', 'w', encoding='utf-8') as f:
+			f.write(header)
+			
+			# Write the model output first
+			f.write("=== Model Output ===\n")
+			if 'raw' in response:
+				content = response['raw'].content
+				if isinstance(content, list):
+					for item in content:
+						f.write(json.dumps(item, indent=2))
+						f.write('\n')
+				else:
+					f.write(json.dumps(content, indent=2))
+			f.write('\n\n')
+			
+			# Write metadata separately
+			f.write("=== Response Metadata ===\n")
+			metadata = {
+				'model': response.get('raw', {}).model if hasattr(response.get('raw', {}), 'model') else 'unknown',
+				'stop_reason': response.get('raw', {}).stop_reason if hasattr(response.get('raw', {}), 'stop_reason') else 'unknown',
+				'usage': response.get('raw', {}).usage if hasattr(response.get('raw', {}), 'usage') else {}
+			}
+			f.write(json.dumps(metadata, indent=2))
+			f.write('\n\n')
+			
+			# Write tool calls if present
+			if hasattr(response.get('raw', {}), 'tool_calls'):
+				f.write("=== Tool Calls ===\n")
+				f.write(json.dumps(response['raw'].tool_calls, indent=2))
+				f.write('\n')
+		
+		# Log input messages
+		with open(log_dir / f'step_{step_number}_input.txt', 'w', encoding='utf-8') as f:
+			f.write(header)
+			for msg in input_messages:
+				f.write(f"=== {msg.__class__.__name__} ===\n")
+				if isinstance(msg.content, list):
+					for item in msg.content:
+						if isinstance(item, dict):
+							if item.get('type') == 'text':
+								f.write("Message Text Content:\n")
+								f.write(f"{item['text']}\n")
+							elif item.get('type') == 'image_url':
+								img_data = item['image_url']['url'].split('base64,')[-1]
+								size_kb = len(img_data) * 3 / 4 / 1024
+								f.write(f"Message Image, size: {size_kb:.1f}KB\n")
+						else:
+							f.write(str(item))    
+				else:
+					f.write(str(msg.content))
+				f.write('\n' + '-'*50 + '\n')
+		
+		# Log parsed output
+		with open(log_dir / f'step_{step_number}_parsed.txt', 'w', encoding='utf-8') as f:
+			f.write(header)
+			if parsed:
+				f.write(parsed.model_dump_json(indent=2))
+			else:
+				f.write('No parsed output')
 
 	def _log_agent_run(self) -> None:
 		"""Log the agent run"""
