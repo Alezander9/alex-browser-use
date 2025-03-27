@@ -17,6 +17,8 @@ from langchain_core.messages import (
 	BaseMessage,
 	HumanMessage,
 	SystemMessage,
+	AIMessage,
+	ToolMessage,
 )
 
 # from lmnr.sdk.decorators import observe
@@ -601,56 +603,33 @@ class Agent(Generic[Context]):
 		response: dict[str, Any],
 		parsed: Optional[AgentOutput]
 	) -> None:
-		"""Log detailed step information to files.
-		
-		Args:
-			log_dir: Directory to save log files
-			step_number: Current step number
-			input_messages: List of input messages
-			response: Raw response from the model
-			parsed: Parsed AgentOutput object
-		"""
+		"""Log detailed step information to files."""
 		timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 		header = f"Timestamp: {timestamp}\nStep: {step_number}\n{'-'*50}\n\n"
-		
-		# Format the output file with sections
-		with open(log_dir / f'step_{step_number}_output.txt', 'w', encoding='utf-8') as f:
-			f.write(header)
-			
-			# Write the model output first
-			f.write("=== Model Output ===\n")
-			if 'raw' in response:
-				content = response['raw'].content
-				if isinstance(content, list):
-					for item in content:
-						f.write(json.dumps(item, indent=2))
-						f.write('\n')
-				else:
-					f.write(json.dumps(content, indent=2))
-			f.write('\n\n')
-			
-			# Write metadata separately
-			f.write("=== Response Metadata ===\n")
-			metadata = {
-				'model': response.get('raw', {}).model if hasattr(response.get('raw', {}), 'model') else 'unknown',
-				'stop_reason': response.get('raw', {}).stop_reason if hasattr(response.get('raw', {}), 'stop_reason') else 'unknown',
-				'usage': response.get('raw', {}).usage if hasattr(response.get('raw', {}), 'usage') else {}
-			}
-			f.write(json.dumps(metadata, indent=2))
-			f.write('\n\n')
-			
-			# Write tool calls if present
-			if hasattr(response.get('raw', {}), 'tool_calls'):
-				f.write("=== Tool Calls ===\n")
-				f.write(json.dumps(response['raw'].tool_calls, indent=2))
-				f.write('\n')
 		
 		# Log input messages
 		with open(log_dir / f'step_{step_number}_input.txt', 'w', encoding='utf-8') as f:
 			f.write(header)
 			for msg in input_messages:
 				f.write(f"=== {msg.__class__.__name__} ===\n")
-				if isinstance(msg.content, list):
+				
+				# Handle AI messages with tool calls
+				if isinstance(msg, AIMessage) and hasattr(msg, 'tool_calls') and msg.tool_calls:
+					if msg.content:
+						f.write("Content:\n")
+						f.write(f"{msg.content}\n")
+					f.write("Tool Calls:\n")
+					for tool_call in msg.tool_calls:
+						f.write(f"- Tool: {tool_call['name']}\n")
+						f.write(f"  Args: {json.dumps(tool_call['args'], indent=2)}\n")
+						f.write(f"  ID: {tool_call['id']}\n")
+				# Handle ToolMessages
+				elif isinstance(msg, ToolMessage):
+					f.write(f"Tool Call ID: {msg.tool_call_id}\n")
+					f.write("Content:\n")
+					f.write(f"{msg.content}\n")
+				# Handle messages with mixed content (like images)
+				elif isinstance(msg.content, list):
 					for item in msg.content:
 						if isinstance(item, dict):
 							if item.get('type') == 'text':
@@ -661,10 +640,49 @@ class Agent(Generic[Context]):
 								size_kb = len(img_data) * 3 / 4 / 1024
 								f.write(f"Message Image, size: {size_kb:.1f}KB\n")
 						else:
-							f.write(str(item))    
+							f.write(str(item))
 				else:
 					f.write(str(msg.content))
 				f.write('\n' + '-'*50 + '\n')
+		
+		# Log model response
+		with open(log_dir / f'step_{step_number}_output.txt', 'w', encoding='utf-8') as f:
+			f.write(header)
+			
+			# Write the raw model output
+			f.write("=== Model Output ===\n")
+			if 'raw' in response:
+				raw_msg = response['raw']
+				# Handle tool calls in raw response
+				if hasattr(raw_msg, 'tool_calls') and raw_msg.tool_calls:
+					if raw_msg.content:
+						f.write("Content:\n")
+						f.write(f"{raw_msg.content}\n\n")
+					f.write("Tool Calls:\n")
+					for tool_call in raw_msg.tool_calls:
+						f.write(f"- Tool: {tool_call['name']}\n")
+						f.write(f"  Args: {json.dumps(tool_call['args'], indent=2)}\n")
+						f.write(f"  ID: {tool_call['id']}\n")
+				# Handle regular content
+				else:
+					content = raw_msg.content
+					if isinstance(content, list):
+						for item in content:
+							f.write(json.dumps(item, indent=2))
+							f.write('\n')
+					else:
+						f.write(str(content))
+			f.write('\n\n')
+			
+			# Write metadata separately
+			f.write("=== Response Metadata ===\n")
+			metadata = {
+				'model': response.get('raw', {}).model if hasattr(response.get('raw', {}), 'model') else 'unknown',
+				'stop_reason': response.get('raw', {}).stop_reason if hasattr(response.get('raw', {}), 'stop_reason') else 'unknown',
+				'usage': response.get('raw', {}).usage if hasattr(response.get('raw', {}), 'usage') else {}
+			}
+			f.write(json.dumps(metadata, indent=2))
+			f.write('\n')
 		
 		# Log parsed output
 		with open(log_dir / f'step_{step_number}_parsed.txt', 'w', encoding='utf-8') as f:

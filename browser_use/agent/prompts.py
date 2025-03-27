@@ -102,8 +102,8 @@ class AgentMessagePrompt:
 		time_str = datetime.now().strftime('%Y-%m-%d %H:%M')
 		step_info_description += f'Current date and time: {time_str}'
 
+# Removed [Task history memory ends] from beginning of this message
 		state_description = f"""
-[Task history memory ends]
 [Current state starts here]
 The following is one-time information - if you need to remember it write it to memory:
 Current url: {self.state.url}

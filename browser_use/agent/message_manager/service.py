@@ -53,10 +53,10 @@ class MessageManager:
 		self._add_message_with_tokens(self.system_prompt)
 
 		if self.settings.message_context:
-			context_message = HumanMessage(content='Context for the task' + self.settings.message_context)
+			context_message = SystemMessage(content='Context for the task' + self.settings.message_context)
 			self._add_message_with_tokens(context_message)
 
-		task_message = HumanMessage(
+		task_message = SystemMessage(
 			content=f'Your ultimate task is: """{self.task}""". If you achieved your ultimate task, stop everything and use the done action in the next step to complete the task. If not, continue as usual.'
 		)
 		self._add_message_with_tokens(task_message)
@@ -67,34 +67,38 @@ class MessageManager:
 			info_message = HumanMessage(content=info)
 			self._add_message_with_tokens(info_message)
 
-		placeholder_message = HumanMessage(content='Example output:')
-		self._add_message_with_tokens(placeholder_message)
+		# This example format message has no content so I am commenting it out
+		# placeholder_message = HumanMessage(content='Example output:')
+		# self._add_message_with_tokens(placeholder_message)
 
-		tool_calls = [
+		example_tool_call = AIMessage(
+			content='This is an example tool call',
+			tool_calls=[
 			{
 				'name': 'AgentOutput',
 				'args': {
 					'current_state': {
-						'evaluation_previous_goal': 'Success - I opend the first page',
+						'evaluation_previous_goal': 'Success - I opened the first page',
 						'memory': 'Starting with the new task. I have completed 1/10 steps',
-						'next_goal': 'Click on company a',
+						'next_goal': 'Click on company address at index [21]',
 					},
-					'action': [{'click_element': {'index': 0}}],
+					'action': [{'click_element': {'index': 21}}],
 				},
 				'id': str(self.state.tool_id),
 				'type': 'tool_call',
 			}
-		]
-
-		example_tool_call = AIMessage(
-			content='',
-			tool_calls=tool_calls,
+		],
 		)
 		self._add_message_with_tokens(example_tool_call)
-		self.add_tool_message(content='Browser started')
+		self.add_tool_message(content='🖱️  Clicked button with index 21: ')
 
-		placeholder_message = HumanMessage(content='[Your task history memory starts here]')
-		self._add_message_with_tokens(placeholder_message)
+
+		# Removed this tool message as browser starting is automatic and agent need not know
+		# self.add_tool_message(content='Browser started')
+
+		# This memory message has no actual memory content so I am commenting it out
+		# placeholder_message = HumanMessage(content='[Your task history memory starts here]')
+		# self._add_message_with_tokens(placeholder_message)
 
 		if self.settings.available_file_paths:
 			filepaths_msg = HumanMessage(content=f'Here are file paths you can use: {self.settings.available_file_paths}')
@@ -121,16 +125,26 @@ class MessageManager:
 			for r in result:
 				if r.include_in_memory:
 					if r.extracted_content:
-						msg = HumanMessage(content='Action result: ' + str(r.extracted_content))
+						# Change HumanMessage to ToolMessage
+						msg = ToolMessage(
+							content=str(r.extracted_content),
+							tool_call_id=str(self.state.tool_id)
+						)
 						self._add_message_with_tokens(msg)
+						self.state.tool_id += 1  # Increment tool_id for next use
 					if r.error:
 						# if endswith \n, remove it
 						if r.error.endswith('\n'):
 							r.error = r.error[:-1]
 						# get only last line of error
 						last_line = r.error.split('\n')[-1]
-						msg = HumanMessage(content='Action error: ' + last_line)
+						# Also change error messages to ToolMessage
+						msg = ToolMessage(
+							content=f'Error: {last_line}',
+							tool_call_id=str(self.state.tool_id)
+						)
 						self._add_message_with_tokens(msg)
+						self.state.tool_id += 1  # Increment tool_id for next use
 					result = None  # if result in history, we dont want to add it again
 
 		# otherwise add state message and result to next message (which will not stay in memory)
@@ -144,14 +158,12 @@ class MessageManager:
 
 	def add_model_output(self, model_output: AgentOutput) -> None:
 		"""Add model output as AI message"""
-		tool_calls = [
-			{
-				'name': 'AgentOutput',
-				'args': model_output.model_dump(mode='json', exclude_unset=True),
-				'id': str(self.state.tool_id),
-				'type': 'tool_call',
-			}
-		]
+		tool_calls = [{
+			'name': 'AgentOutput',
+			'args': model_output.model_dump(mode='json', exclude_unset=True),
+			'id': str(self.state.tool_id),
+			'type': 'tool_call',
+		}]
 
 		msg = AIMessage(
 			content='',
@@ -159,8 +171,6 @@ class MessageManager:
 		)
 
 		self._add_message_with_tokens(msg)
-		# empty tool response
-		self.add_tool_message(content='')
 
 	def add_plan(self, plan: Optional[str], position: int | None = None) -> None:
 		if plan:
