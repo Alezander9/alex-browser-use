@@ -157,11 +157,60 @@ class BrowserContextConfig(BaseModel):
 	timezone_id: str | None = None
 
 
-@dataclass
 class BrowserSession:
-	context: PlaywrightBrowserContext
-	cached_state: BrowserState | None
+	
+	def __init__(
+			self,
+			context: PlaywrightBrowserContext,
+			cached_state: BrowserState | None=None
+		):
+		init_script = """
+			(() => {
+				if (!window.getEventListeners) {
+					window.getEventListeners = function (node) {
+						return node.__listeners || {};
+					};
 
+					// Save the original addEventListener
+					const originalAddEventListener = Element.prototype.addEventListener;
+
+					const eventProxy = {
+						addEventListener: function (type, listener, options = {}) {
+							// Initialize __listeners if not exists
+							const defaultOptions = { once: false, passive: false, capture: false };
+							if(typeof options === 'boolean') {
+								options = { capture: options };
+							}
+							options = { ...defaultOptions, ...options };
+							if (!this.__listeners) {
+								this.__listeners = {};
+							}
+
+							// Initialize array for this event type if not exists
+							if (!this.__listeners[type]) {
+								this.__listeners[type] = [];
+							}
+							
+
+							// Add the listener to __listeners
+							this.__listeners[type].push({
+								listener: listener,
+								type: type,
+								...options
+							});
+
+							// Call original addEventListener using the saved reference
+							return originalAddEventListener.call(this, type, listener, options);
+						}
+					};
+
+					Element.prototype.addEventListener = eventProxy.addEventListener;
+				}
+			})()
+			"""
+		self.context = context
+		self.cached_state = cached_state
+		self.context.on('page', lambda page: page.add_init_script(init_script))
 
 @dataclass
 class BrowserContextState:
@@ -1168,14 +1217,17 @@ class BrowserContext:
 			return None
 
 	@time_execution_async('--get_locate_element_by_text')
-	async def get_locate_element_by_text(self, text: str, nth: Optional[int] = 0) -> Optional[ElementHandle]:
+	async def get_locate_element_by_text(self, text: str, nth: Optional[int] = 0, element_type: Optional[str] = None) -> Optional[ElementHandle]:
 		"""
 		Locates an element on the page using the provided text.
 		If `nth` is provided, it returns the nth matching element (0-based).
+		If `element_type` is provided, filters by tag name (e.g., 'button', 'span').
 		"""
 		current_frame = await self.get_current_page()
 		try:
-			elements = await current_frame.query_selector_all(f'text={text}')
+			# handle also specific element type or use any type.
+			selector = f"{element_type or '*'}:text(\"{text}\")"
+			elements = await current_frame.query_selector_all(selector)
 			# considering only visible elements
 			elements = [el for el in elements if await el.is_visible()]
 
@@ -1509,3 +1561,17 @@ class BrowserContext:
 		except Exception as e:
 			logger.debug(f'Failed to get CDP targets: {e}')
 			return []
+
+	async def wait_for_element(self, selector: str, timeout: float) -> None:
+		"""
+		Waits for an element matching the given CSS selector to become visible.
+
+		Args:
+		    selector (str): The CSS selector of the element.
+		    timeout (float): The maximum time to wait for the element to be visible (in milliseconds).
+
+		Raises:
+		    TimeoutError: If the element does not become visible within the specified timeout.
+		"""
+		page = await self.get_current_page()
+		await page.wait_for_selector(selector, state="visible", timeout=timeout)
