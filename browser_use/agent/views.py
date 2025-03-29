@@ -35,6 +35,7 @@ class AgentSettings(BaseModel):
 	"""Options for the agent"""
 
 	use_vision: bool = True
+	remove_empty_elements: bool = False
 	use_vision_for_planner: bool = False
 	save_conversation_path: Optional[str] = None
 	save_conversation_path_encoding: Optional[str] = 'utf-8'

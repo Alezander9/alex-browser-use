@@ -2,6 +2,7 @@ import datetime
 import importlib.resources
 from datetime import datetime
 from typing import TYPE_CHECKING, List, Optional
+import re
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
@@ -73,8 +74,17 @@ class AgentMessagePrompt:
 		self.include_attributes = include_attributes
 		self.step_info = step_info
 
-	def get_user_message(self, use_vision: bool = True) -> HumanMessage:
+	def get_user_message(self, use_vision: bool = True, remove_empty_elements: bool = False) -> HumanMessage:
 		elements_text = self.state.element_tree.clickable_elements_to_string(include_attributes=self.include_attributes)
+
+		if remove_empty_elements:
+			original_lines = elements_text.split('\n')
+			pattern = r'\[\d+\]<\w+ />'
+			filtered_lines = [line for line in original_lines if not re.match(pattern, line.strip())]
+			removed_count = len(original_lines) - len(filtered_lines)
+			elements_text = '\n'.join(filtered_lines)
+			if removed_count > 0:
+				elements_text += f'\nNote: {removed_count} interactive elements with no content were removed from this list'
 
 		has_content_above = (self.state.pixels_above or 0) > 0
 		has_content_below = (self.state.pixels_below or 0) > 0

@@ -116,6 +116,7 @@ class Agent(Generic[Context]):
 		register_external_agent_status_raise_error_callback: Callable[[], Awaitable[bool]] | None = None,
 		# Agent settings
 		use_vision: bool = True,
+		remove_empty_elements: bool = False,
 		use_vision_for_planner: bool = False,
 		save_conversation_path: Optional[str] = None,
 		save_conversation_path_encoding: Optional[str] = 'utf-8',
@@ -161,6 +162,7 @@ class Agent(Generic[Context]):
 
 		self.settings = AgentSettings(
 			use_vision=use_vision,
+			remove_empty_elements=remove_empty_elements,
 			use_vision_for_planner=use_vision_for_planner,
 			save_conversation_path=save_conversation_path,
 			save_conversation_path_encoding=save_conversation_path_encoding,
@@ -397,7 +399,7 @@ class Agent(Generic[Context]):
 					updated_context = f'Available actions: {all_actions}'
 				self._message_manager.settings.message_context = updated_context
 
-			self._message_manager.add_state_message(state, self.state.last_result, step_info, self.settings.use_vision)
+			self._message_manager.add_state_message(state, self.state.last_result, step_info, self.settings.use_vision, self.settings.remove_empty_elements)
 
 			# Run planner at specified intervals if planner is configured
 			if self.settings.planner_llm and self.state.n_steps % self.settings.planner_interval == 0:

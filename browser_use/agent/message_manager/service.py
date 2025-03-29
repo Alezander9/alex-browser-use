@@ -78,11 +78,11 @@ class MessageManager:
 				'name': 'AgentOutput',
 				'args': {
 					'current_state': {
-						'evaluation_previous_goal': 'Success - I opened the first page',
-						'memory': 'Starting with the new task. I have completed 1/10 steps',
-						'next_goal': 'Click on company address at index [21]',
+						'evaluation_previous_goal': """Success - I successfully clicked on the 'Apple' link from the Google Search results page, which directed me to the 'Apple' company homepage. This is a good start toward finding the best place to buy a new iPhone as the Apple website often list iPhones for sale.""",
+						'memory': """I searched for 'iPhone retailers' on Google. From the Google Search results page, I used the 'click_element' tool to click on a element labelled 'Best Buy' but calling the tool did not direct me to a new page. I then used the 'click_element' tool to click on a element labelled 'Apple' which redirected me to the 'Apple' company homepage. Currently at step 3/15.""",
+						'next_goal': """Looking at reported structure of the current page, I can see the item '[127]<h3 iPhone/>' in the content. I think this button will lead to more information and potentially prices for iPhones. I'll click on the link to 'Quantum mechanics' at index [127] using the 'click_element' tool and hope to see prices on the next page.""",
 					},
-					'action': [{'click_element': {'index': 21}}],
+					'action': [{'click_element': {'index': 127}}],
 				},
 				'id': str(self.state.tool_id),
 				'type': 'tool_call',
@@ -90,7 +90,7 @@ class MessageManager:
 		],
 		)
 		self._add_message_with_tokens(example_tool_call)
-		self.add_tool_message(content='🖱️  Clicked button with index 21: ')
+		self.add_tool_message(content='🖱️  Clicked button with index 127: ')
 
 
 		# Removed this tool message as browser starting is automatic and agent need not know
@@ -117,6 +117,7 @@ class MessageManager:
 		result: Optional[List[ActionResult]] = None,
 		step_info: Optional[AgentStepInfo] = None,
 		use_vision=True,
+		remove_empty_elements=False,
 	) -> None:
 		"""Add browser state as human message"""
 
@@ -153,7 +154,7 @@ class MessageManager:
 			result,
 			include_attributes=self.settings.include_attributes,
 			step_info=step_info,
-		).get_user_message(use_vision)
+		).get_user_message(use_vision, remove_empty_elements)
 		self._add_message_with_tokens(state_message)
 
 	def add_model_output(self, model_output: AgentOutput) -> None:
