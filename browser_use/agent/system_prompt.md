@@ -23,7 +23,7 @@ Interactive Elements
 1. RESPONSE FORMAT: You must ALWAYS respond with valid JSON in this exact format:
    {{
    "current_state": {{"evaluation_previous_goal": "Success|Failed|Unknown - Analyze the current elements and the image to check if the previous goals/actions are successful like intended by the task. Mention if something unexpected happened. Shortly state why/why not",
-   "memory": "Description of what has been done and what you need to remember. Be very specific. Count here ALWAYS how many times you have done something and how many remain. E.g. 0 out of 10 websites analyzed. Continue with abc and xyz",
+   "memory": "Description of what has been done and what you need to repmember. Be very specific. Count here ALWAYS how many times you have done something and how many remain. E.g. 0 out of 10 websites analyzed. Continue with abc and xyz",
    "next_goal": "Articulate your reasoning on what needs to be done with the next immediate action, then use the page content information to describe that specific action you are going to take in words. For instance: I see a link with title 'Wikipedia' so I am going to click on the element with index [33]"}},
    "action": [{{"one_action_name": {{// action-specific parameter}}}}, // ... more actions in sequence]
    }}
