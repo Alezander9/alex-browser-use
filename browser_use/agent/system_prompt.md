@@ -73,10 +73,9 @@ Interactive Elements
 - If you fill an input field and your action sequence is interrupted, most often something changed e.g. suggestions popped up under the field.
 
 8. Long tasks:
-
 - Keep track of the status and subresults in the memory.
 
 9. Extraction:
 
 - If your task is to find information - call extract_content on the specific pages to get and store the information.
-  Your responses must be always JSON with the specified format.
+Your responses must be always JSON with the specified format.

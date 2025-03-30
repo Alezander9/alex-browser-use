@@ -146,6 +146,7 @@ class Agent(Generic[Context]):
 		page_extraction_llm: Optional[BaseChatModel] = None,
 		planner_llm: Optional[BaseChatModel] = None,
 		planner_interval: int = 1,  # Run planner every N steps
+		is_planner_reasoning: bool = False,
 		# Inject state
 		injected_agent_state: Optional[AgentState] = None,
 		#
@@ -181,6 +182,7 @@ class Agent(Generic[Context]):
 			page_extraction_llm=page_extraction_llm,
 			planner_llm=planner_llm,
 			planner_interval=planner_interval,
+			is_planner_reasoning=is_planner_reasoning,
 		)
 
 		# Initialize state
@@ -193,10 +195,15 @@ class Agent(Generic[Context]):
 
 		# Model setup
 		self._set_model_names()
+		logger.info(
+			f"Starting an agent with main_model={self.model_name}, planner_model={self.planner_model_name}, "
+			f"extraction_model={self.settings.page_extraction_llm.model_name if hasattr(self.settings.page_extraction_llm, 'model_name') else None}"
+		)
+
 
 		# LLM API connection setup
-		llm_api_env_vars = REQUIRED_LLM_API_ENV_VARS[self.llm.__class__.__name__]
-		if not check_env_variables(llm_api_env_vars):
+		llm_api_env_vars = REQUIRED_LLM_API_ENV_VARS.get(self.llm.__class__.__name__, [])
+		if llm_api_env_vars and not check_env_variables(llm_api_env_vars):
 			logger.error(f'Environment variables not set for {self.llm.__class__.__name__}')
 			raise ValueError('Environment variables not set')
 
@@ -1272,7 +1279,7 @@ class Agent(Generic[Context]):
 
 		# Create planner message history using full message history with all available actions
 		planner_messages = [
-			PlannerPrompt(all_actions).get_system_message(),
+			PlannerPrompt(all_actions).get_system_message(self.settings.is_planner_reasoning),
 			*self._message_manager.get_messages()[1:],  # Use full message history except the first
 		]
 
