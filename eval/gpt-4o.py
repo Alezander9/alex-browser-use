@@ -8,7 +8,7 @@ from browser_use import Agent
 load_dotenv()
 
 
-async def run_agent(task: str, max_steps: int = 38):
+async def run_agent(task: str, max_steps: int = 20):
 	llm = ChatOpenAI(
 		model='gpt-4o',
 		temperature=0.0,
