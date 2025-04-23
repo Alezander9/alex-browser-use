@@ -31,6 +31,7 @@ from browser_use.agent.prompts import AgentMessagePrompt, PlannerPrompt, SystemP
 from browser_use.agent.views import (
 	REQUIRED_LLM_API_ENV_VARS,
 	ActionResult,
+	AgentBrain,
 	AgentError,
 	AgentHistory,
 	AgentHistoryList,
@@ -88,6 +89,8 @@ AgentHookFunc = Callable[['Agent'], Awaitable[None]]
 
 
 class Agent(Generic[Context]):
+	_llm_verified: bool = False
+
 	@time_execution_sync('--init (agent)')
 	def __init__(
 		self,
@@ -472,6 +475,7 @@ class Agent(Generic[Context]):
 
 			try:
 				model_output = await self.get_next_action(input_messages)
+				self.state.current_step_model_output = model_output
 
 				# Check again for paused/stopped state after getting model output
 				# This is needed in case Ctrl+C was pressed during the get_next_action call
@@ -556,6 +560,8 @@ class Agent(Generic[Context]):
 					input_tokens=tokens,
 				)
 				self._make_history_item(model_output, state, result, metadata)
+
+			self.state.current_step_model_output = None
 
 	@time_execution_async('--handle_step_error (agent)')
 	async def _handle_step_error(self, error: Exception) -> list[ActionResult]:
@@ -692,21 +698,17 @@ class Agent(Generic[Context]):
 
 				tool_call = raw_msg.tool_calls[0]  # Take first tool call
 
-				# Create current state
-				tool_call_name = tool_call['name']
-				tool_call_args = tool_call['args']
-
-				current_state = {
-					'page_summary': 'Processing tool call',
-					'evaluation_previous_goal': 'Executing action',
-					'memory': 'Using tool call',
-					'next_goal': f'Execute {tool_call_name}',
-				}
+				# Create current state as an AgentBrain object
+				current_state_obj = AgentBrain(
+					evaluation_previous_goal='Executing action',
+					memory='Using tool call',
+					next_goal=f'Execute {tool_call["name"]}',
+				)
 
 				# Create action from tool call
-				action = {tool_call_name: tool_call_args}
+				action = {tool_call['name']: tool_call['args']}
 
-				parsed = self.AgentOutput(current_state=current_state, action=[self.ActionModel(**action)])
+				parsed = self.AgentOutput(current_state=current_state_obj, action=[self.ActionModel(**action)])
 			else:
 				parsed = None
 		else:
@@ -1205,10 +1207,8 @@ class Agent(Generic[Context]):
 		"""
 		logger.debug(f'Verifying the {self.llm.__class__.__name__} LLM knows the capital of France...')
 
-		if getattr(self.llm, '_verified_api_keys', None) is True or SKIP_LLM_API_KEY_VERIFICATION:
-			# skip roundtrip connection test for speed in cloud environment
-			# If the LLM API keys have already been verified during a previous run, skip the test
-			self.llm._verified_api_keys = True
+		if self._llm_verified or SKIP_LLM_API_KEY_VERIFICATION:
+			# If the LLM has already been verified during a previous run, skip the test
 			return True
 
 		# show a warning if it looks like any required environment variables are missing
@@ -1229,7 +1229,7 @@ class Agent(Generic[Context]):
 				logger.debug(
 					f'🪪 LLM API keys {", ".join(required_keys)} work, {self.llm.__class__.__name__} model is connected & responding correctly.'
 				)
-				self.llm._verified_api_keys = True
+				self._llm_verified = True
 				return True
 			else:
 				logger.warning(
@@ -1240,7 +1240,7 @@ class Agent(Generic[Context]):
 				)
 				raise Exception('LLM responded to a simple test question incorrectly')
 		except Exception as e:
-			self.llm._verified_api_keys = False
+			self._llm_verified = False
 			logger.error(
 				f'\n\n❌  LLM {self.llm.__class__.__name__} connection test failed. Check that {", ".join(required_keys)} is set correctly in .env and that the LLM API account has sufficient funding.\n\n{e}\n'
 			)

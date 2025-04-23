@@ -85,6 +85,7 @@ class AgentState(BaseModel):
 	stopped: bool = False
 
 	message_manager_state: MessageManagerState = Field(default_factory=MessageManagerState)
+	current_step_model_output: Optional[AgentOutput] = None
 
 	# class Config:
 	# 	arbitrary_types_allowed = True
