@@ -45,6 +45,12 @@ jobs:
       - name: Install Playwright browser dependencies
         run: playwright install --no-shell chromium
 
+      - name: Install Xvfb for headed mode
+        if: github.event.client_payload.script_args.headless == 'false'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb
+
       - name: Construct eval command
         id: eval_command
         run: |
@@ -100,6 +106,11 @@ jobs:
           CMD="$CMD --fresh-start $FRESH_START_VALUE \
             --eval-group \"$EVAL_GROUP\" \
             --user-message \"$USER_MESSAGE\""
+
+          # Prepend xvfb-run if running in headed mode
+          if [[ "$HEADLESS_EFFECTIVE_VALUE" == "false" ]]; then
+            CMD="xvfb-run --auto-servernum --server-args='-screen 0 1280x1024x24' $CMD"
+          fi
 
           echo "FULL_COMMAND=$CMD" >> $GITHUB_OUTPUT
           echo "::notice title=Eval Command::$CMD"
