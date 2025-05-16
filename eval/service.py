@@ -875,8 +875,12 @@ async def run_task_with_semaphore(
 					)
 
 					# Pass hook functions
-					await agent.run(
-						max_steps=max_steps_per_task, on_step_start=tracker.on_step_start, on_step_end=tracker.on_step_end
+					# Wrap agent.run with asyncio.wait_for for a 5-minute timeout (300 seconds)
+					await asyncio.wait_for(
+						agent.run(
+							max_steps=max_steps_per_task, on_step_start=tracker.on_step_start, on_step_end=tracker.on_step_end
+						),
+						timeout=600.0,  # 10 minutes
 					)
 					logger.info(f'Task {task.task_id}: Execution completed.')
 
