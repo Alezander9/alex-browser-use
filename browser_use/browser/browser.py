@@ -350,8 +350,10 @@ class Browser:
 
 		# For testing, hardcode --single-process for chromium
 		if self.config.browser_class == 'chromium':
-			if '--single-process' not in args[self.config.browser_class]:  # Avoid duplicates if already there
-				args[self.config.browser_class].append('--single-process')
+			# if '--single-process' not in args[self.config.browser_class]:  # Avoid duplicates if already there
+			# 	args[self.config.browser_class].append('--single-process')
+			if '--headless=new' not in args[self.config.browser_class]:
+				args[self.config.browser_class].append('--headless=new')
 
 		browser = await browser_class.launch(
 			channel='chromium',  # https://github.com/microsoft/playwright/issues/33566
