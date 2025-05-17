@@ -243,7 +243,7 @@ class Browser:
 		# Start a new Chrome instance
 		chrome_launch_args = [
 			*{  # remove duplicates (usually preserves the order, but not guaranteed)
-				f'--remote-debugging-port={self.config.chrome_remote_debugging_port}',
+				'',  # was --remote-debugging-port={self.config.chrome_remote_debugging_port}
 				*([f'--user-data-dir={user_data_dir.resolve()}'] if not provided_user_data_dir else []),
 				*CHROME_ARGS,
 				*(CHROME_DOCKER_ARGS if IN_DOCKER else []),
@@ -314,7 +314,7 @@ class Browser:
 			offset_x, offset_y = get_window_adjustments()
 
 		chrome_args = {
-			f'--remote-debugging-port={self.config.chrome_remote_debugging_port}',
+			'',  # was --remote-debugging-port={self.config.chrome_remote_debugging_port}
 			*CHROME_ARGS,
 			*(CHROME_DOCKER_ARGS if IN_DOCKER else []),
 			*(CHROME_HEADLESS_ARGS if self.config.headless else []),
@@ -349,11 +349,11 @@ class Browser:
 		}
 
 		# For testing, hardcode --single-process for chromium
-		if self.config.browser_class == 'chromium':
-			if '--single-process' not in args[self.config.browser_class]:  # Avoid duplicates if already there
-				args[self.config.browser_class].append('--single-process')
-			if '--headless=new' not in args[self.config.browser_class]:
-				args[self.config.browser_class].append('--headless=new')
+		# if self.config.browser_class == 'chromium':
+		# 	if '--single-process' not in args[self.config.browser_class]:  # Avoid duplicates if already there
+		# 		args[self.config.browser_class].append('--single-process')
+		# 	if '--headless=new' not in args[self.config.browser_class]:
+		# 		args[self.config.browser_class].append('--headless=new')
 
 		browser = await browser_class.launch(
 			channel='chromium',  # https://github.com/microsoft/playwright/issues/33566
