@@ -118,14 +118,3 @@ jobs:
 
       - name: Run evaluation script
         run: ${{ steps.eval_command.outputs.FULL_COMMAND }}
-
-      - name: Upload evaluation artifacts
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: evaluation-results-${{ github.run_id }}
-          path: |
-            saved_trajectories/
-            *.log # If your script produces log files in the root
-          retention-days: 7
-          if-no-files-found: warn
