@@ -862,7 +862,7 @@ async def run_task_with_semaphore(
 				try:
 					# Create simplified tracker just for annotated screenshots
 					tracker = ScreenshotTracker(task.task_id, task.confirmed_task, run_id)
-					browserConfig = BrowserConfig(headless=headless)
+					browserConfig = BrowserConfig(headless=headless, timeout=31000)
 					browser = Browser(config=browserConfig)
 					initial_actions = [{'go_to_url': {'url': task.website}}]
 					agent = Agent(
