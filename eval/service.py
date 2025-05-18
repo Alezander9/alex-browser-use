@@ -293,7 +293,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI
 from pydantic.types import SecretStr
 
-from browser_use import Agent, Browser, BrowserConfig
+from browser_use import Agent, BrowserProfile, BrowserSession
 from browser_use.agent.views import AgentHistoryList
 
 SUPPORTED_MODELS = {
@@ -862,13 +862,18 @@ async def run_task_with_semaphore(
 				try:
 					# Create simplified tracker just for annotated screenshots
 					tracker = ScreenshotTracker(task.task_id, task.confirmed_task, run_id)
-					browserConfig = BrowserConfig(headless=headless)
-					browser = Browser(config=browserConfig)
+
+					browser_profile = BrowserProfile(
+						headless=headless,
+						timeout=31000,
+					)
+					browser_session = BrowserSession(profile=browser_profile)
+
 					initial_actions = [{'go_to_url': {'url': task.website}}]
 					agent = Agent(
 						task=task.confirmed_task,
 						llm=llm,
-						browser=browser,
+						browser_session=browser_session,
 						initial_actions=initial_actions,
 						use_vision=use_vision,
 						source='eval_platform',
