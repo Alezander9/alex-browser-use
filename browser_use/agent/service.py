@@ -791,7 +791,7 @@ class Agent(Generic[Context]):
 
 	def _log_agent_run(self) -> None:
 		"""Log the agent run"""
-		logger.info(f'🚀 Starting task: {self.task}')
+		logger.info(f'🚀 Starting task (on experimental new-browser-session branch): {self.task}')
 
 		logger.debug(f'Version: {self.version}, Source: {self.source}')
 
