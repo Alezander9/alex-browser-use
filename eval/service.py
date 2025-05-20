@@ -874,6 +874,7 @@ async def run_task_with_semaphore(
 							user_data_dir=str(unique_user_data_dir),  # Pass the unique path
 							headless=headless,
 							timeout=31000,
+							chromium_sandbox=False,  # This is needed for the browser to run on GitHub Actions
 						),
 					)
 
