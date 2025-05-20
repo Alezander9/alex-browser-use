@@ -587,31 +587,31 @@ class Task:
 		return self.__str__()
 
 
-class ScreenshotTracker:
-	def __init__(self, task_id: str, task: str, run_id: str):
-		self.task_id = task_id
-		self.trajectory_dir = Path(f'saved_trajectories/{task_id}/trajectory')
-		self.trajectory_dir.mkdir(parents=True, exist_ok=True)
-		self.step_counter = 0
+# class ScreenshotTracker:
+# 	def __init__(self, task_id: str, task: str, run_id: str):
+# 		self.task_id = task_id
+# 		self.trajectory_dir = Path(f'saved_trajectories/{task_id}/trajectory')
+# 		self.trajectory_dir.mkdir(parents=True, exist_ok=True)
+# 		self.step_counter = 0
 
-	async def on_step_start(self, agent):
-		"""No-op for step start"""
-		pass
+# 	async def on_step_start(self, agent):
+# 		"""No-op for step start"""
+# 		pass
 
-	async def on_step_end(self, agent):
-		"""Only take and save annotated screenshots"""
-		browser_context = agent.browser_context
-		screenshot_path = self.trajectory_dir / f'step_{self.step_counter}.png'
-		screenshot_b64 = await browser_context.take_screenshot()
+# 	async def on_step_end(self, agent):
+# 		"""Only take and save annotated screenshots"""
+# 		browser_context = agent.browser_context
+# 		screenshot_path = self.trajectory_dir / f'step_{self.step_counter}.png'
+# 		screenshot_b64 = await browser_context.take_screenshot()
 
-		async with await anyio.open_file(screenshot_path, 'wb') as f:
-			await f.write(base64.b64decode(screenshot_b64))
+# 		async with await anyio.open_file(screenshot_path, 'wb') as f:
+# 			await f.write(base64.b64decode(screenshot_b64))
 
-		self.step_counter += 1
+# 		self.step_counter += 1
 
-	def save_results(self):
-		"""No-op as we don't save results anymore"""
-		pass
+# 	def save_results(self):
+# 		"""No-op as we don't save results anymore"""
+# 		pass
 
 
 async def judge_task_result(model, task_folder: Path, score_threshold: float = 3) -> dict:
@@ -861,13 +861,23 @@ async def run_task_with_semaphore(
 				browser = None
 				try:
 					# Create simplified tracker just for annotated screenshots
-					tracker = ScreenshotTracker(task.task_id, task.confirmed_task, run_id)
+					# tracker = ScreenshotTracker(task.task_id, task.confirmed_task, run_id)
 
-					browser_profile = BrowserProfile(
-						headless=headless,
-						timeout=31000,
+					# Create a unique user_data_dir for each task
+					# Get parent like C:\\Users\\alexa\\.config\\browseruse\\profiles
+					base_user_data_dir = Path(BrowserProfile().user_data_dir).parent
+					unique_user_data_dir = base_user_data_dir / f'task_{task.task_id}'
+					unique_user_data_dir.mkdir(parents=True, exist_ok=True)  # Ensure it exists
+
+					browser_session = BrowserSession(
+						browser_profile=BrowserProfile(
+							user_data_dir=str(unique_user_data_dir),  # Pass the unique path
+							headless=headless,
+							timeout=31000,
+						),
 					)
-					browser_session = BrowserSession(profile=browser_profile)
+
+					await browser_session.start()
 
 					initial_actions = [{'go_to_url': {'url': task.website}}]
 					agent = Agent(
@@ -881,7 +891,7 @@ async def run_task_with_semaphore(
 
 					# Pass hook functions
 					await agent.run(
-						max_steps=max_steps_per_task, on_step_start=tracker.on_step_start, on_step_end=tracker.on_step_end
+						max_steps=max_steps_per_task,  # on_step_start=tracker.on_step_start, on_step_end=tracker.on_step_end
 					)
 					logger.info(f'Task {task.task_id}: Execution completed.')
 
