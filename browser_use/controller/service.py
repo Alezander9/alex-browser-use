@@ -83,9 +83,14 @@ class Controller(Generic[Context]):
 			param_model=SearchGoogleAction,
 		)
 		async def search_google(params: SearchGoogleAction, browser_session: BrowserSession):
+			search_url = f'https://www.google.com/search?q={params.query}&udm=14'
+
 			page = await browser_session.get_current_page()
-			await page.goto(f'https://www.google.com/search?q={params.query}&udm=14')
-			await page.wait_for_load_state()
+			if page:
+				await page.goto(search_url)
+				await page.wait_for_load_state()
+			else:
+				page = await browser_session.create_new_tab(search_url)
 			msg = f'🔍  Searched for "{params.query}" in Google'
 			logger.info(msg)
 			return ActionResult(extracted_content=msg, include_in_memory=True)
@@ -93,8 +98,11 @@ class Controller(Generic[Context]):
 		@self.registry.action('Navigate to URL in the current tab', param_model=GoToUrlAction)
 		async def go_to_url(params: GoToUrlAction, browser_session: BrowserSession):
 			page = await browser_session.get_current_page()
-			await page.goto(params.url)
-			await page.wait_for_load_state()
+			if page:
+				await page.goto(params.url)
+				await page.wait_for_load_state()
+			else:
+				page = await browser_session.create_new_tab(params.url)
 			msg = f'🔗  Navigated to {params.url}'
 			logger.info(msg)
 			return ActionResult(extracted_content=msg, include_in_memory=True)
@@ -123,7 +131,7 @@ class Controller(Generic[Context]):
 				raise Exception(f'Element with index {params.index} does not exist - retry or use alternative actions')
 
 			element_node = await browser_session.get_dom_element_by_index(params.index)
-			initial_pages = len(browser_session.browser_context.pages if browser_session.browser_context else [])
+			initial_pages = len(browser_session.tabs)
 
 			# if element has file uploader then dont click
 			if await browser_session.is_file_uploader(element_node):
@@ -142,7 +150,7 @@ class Controller(Generic[Context]):
 
 				logger.info(msg)
 				logger.debug(f'Element xpath: {element_node.xpath}')
-				if len(browser_session.browser_context.pages) > initial_pages:
+				if len(browser_session.tabs) > initial_pages:
 					new_tab_msg = 'New tab opened - switching to it'
 					msg += f' - {new_tab_msg}'
 					logger.info(new_tab_msg)
@@ -191,7 +199,7 @@ class Controller(Generic[Context]):
 		async def switch_tab(params: SwitchTabAction, browser_session: BrowserSession):
 			await browser_session.switch_to_tab(params.page_id)
 			# Wait for tab to be ready and ensure references are synchronized
-			page = await browser_session.get_agent_current_page()
+			page = await browser_session.get_current_page()
 			await page.wait_for_load_state()
 			msg = f'🔄  Switched to tab {params.page_id}'
 			logger.info(msg)
@@ -199,9 +207,7 @@ class Controller(Generic[Context]):
 
 		@self.registry.action('Open url in new tab', param_model=OpenTabAction)
 		async def open_tab(params: OpenTabAction, browser_session: BrowserSession):
-			await browser_session.browser_context.create_new_tab(params.url)
-			# Ensure tab references are properly synchronized
-			await browser_session.get_agent_current_page()  # this has side-effects (even though it looks like a getter)
+			await browser_session.create_new_tab(params.url)
 			msg = f'🔗  Opened new tab with {params.url}'
 			logger.info(msg)
 			return ActionResult(extracted_content=msg, include_in_memory=True)
@@ -252,43 +258,47 @@ class Controller(Generic[Context]):
 				return ActionResult(extracted_content=msg)
 
 		@self.registry.action(
-			'Scroll down the page by pixel amount - if no amount is specified, scroll down one page',
+			'Scroll down the page by pixel amount - if none is given, scroll one page',
 			param_model=ScrollAction,
 		)
 		async def scroll_down(params: ScrollAction, browser_session: BrowserSession):
+			"""
+			(a) Use browser._scroll_container for container-aware scrolling.
+			(b) If that JavaScript throws, fall back to window.scrollBy().
+			"""
 			page = await browser_session.get_current_page()
-			if params.amount is not None:
-				await page.evaluate(f'window.scrollBy(0, {params.amount});')
-			else:
-				await page.evaluate('window.scrollBy(0, window.innerHeight);')
+			dy = params.amount or await page.evaluate('() => window.innerHeight')
 
-			amount = f'{params.amount} pixels' if params.amount is not None else 'one page'
-			msg = f'🔍  Scrolled down the page by {amount}'
+			try:
+				await browser_session._scroll_container(dy)
+			except Exception as e:
+				# Hard fallback: always works on root scroller
+				await page.evaluate('(y) => window.scrollBy(0, y)', dy)
+				logger.debug('Smart scroll failed; used window.scrollBy fallback', exc_info=e)
+
+			amount_str = f'{params.amount} pixels' if params.amount is not None else 'one page'
+			msg = f'🔍 Scrolled down the page by {amount_str}'
 			logger.info(msg)
-			return ActionResult(
-				extracted_content=msg,
-				include_in_memory=True,
-			)
+			return ActionResult(extracted_content=msg, include_in_memory=True)
 
-		# scroll up
 		@self.registry.action(
-			'Scroll up the page by pixel amount - if no amount is specified, scroll up one page',
+			'Scroll up the page by pixel amount - if none is given, scroll one page',
 			param_model=ScrollAction,
 		)
 		async def scroll_up(params: ScrollAction, browser_session: BrowserSession):
 			page = await browser_session.get_current_page()
-			if params.amount is not None:
-				await page.evaluate(f'window.scrollBy(0, -{params.amount});')
-			else:
-				await page.evaluate('window.scrollBy(0, -window.innerHeight);')
+			dy = -(params.amount or await page.evaluate('() => window.innerHeight'))
 
-			amount = f'{params.amount} pixels' if params.amount is not None else 'one page'
-			msg = f'🔍  Scrolled up the page by {amount}'
+			try:
+				await browser_session._scroll_container(dy)
+			except Exception as e:
+				await page.evaluate('(y) => window.scrollBy(0, y)', dy)
+				logger.debug('Smart scroll failed; used window.scrollBy fallback', exc_info=e)
+
+			amount_str = f'{params.amount} pixels' if params.amount is not None else 'one page'
+			msg = f'🔍 Scrolled up the page by {amount_str}'
 			logger.info(msg)
-			return ActionResult(
-				extracted_content=msg,
-				include_in_memory=True,
-			)
+			return ActionResult(extracted_content=msg, include_in_memory=True)
 
 		# send keys
 		@self.registry.action(
@@ -838,37 +848,34 @@ class Controller(Generic[Context]):
 	) -> ActionResult:
 		"""Execute an action"""
 
-		try:
-			for action_name, params in action.model_dump(exclude_unset=True).items():
-				if params is not None:
-					# with Laminar.start_as_current_span(
-					# 	name=action_name,
-					# 	input={
-					# 		'action': action_name,
-					# 		'params': params,
-					# 	},
-					# 	span_type='TOOL',
-					# ):
-					result = await self.registry.execute_action(
-						action_name,
-						params,
-						browser_session=browser_session,
-						page_extraction_llm=page_extraction_llm,
-						sensitive_data=sensitive_data,
-						available_file_paths=available_file_paths,
-						context=context,
-					)
+		for action_name, params in action.model_dump(exclude_unset=True).items():
+			if params is not None:
+				# with Laminar.start_as_current_span(
+				# 	name=action_name,
+				# 	input={
+				# 		'action': action_name,
+				# 		'params': params,
+				# 	},
+				# 	span_type='TOOL',
+				# ):
+				result = await self.registry.execute_action(
+					action_name=action_name,
+					params=params,
+					browser_session=browser_session,
+					page_extraction_llm=page_extraction_llm,
+					sensitive_data=sensitive_data,
+					available_file_paths=available_file_paths,
+					context=context,
+				)
 
-					# Laminar.set_span_output(result)
+				# Laminar.set_span_output(result)
 
-					if isinstance(result, str):
-						return ActionResult(extracted_content=result)
-					elif isinstance(result, ActionResult):
-						return result
-					elif result is None:
-						return ActionResult()
-					else:
-						raise ValueError(f'Invalid action result type: {type(result)} of {result}')
-			return ActionResult()
-		except Exception as e:
-			raise e
+				if isinstance(result, str):
+					return ActionResult(extracted_content=result)
+				elif isinstance(result, ActionResult):
+					return result
+				elif result is None:
+					return ActionResult()
+				else:
+					raise ValueError(f'Invalid action result type: {type(result)} of {result}')
+		return ActionResult()
