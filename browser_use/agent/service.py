@@ -13,6 +13,8 @@ from typing import Any, Generic, TypeVar
 
 from dotenv import load_dotenv
 
+from browser_use.browser.session import DEFAULT_BROWSER_PROFILE
+
 load_dotenv()
 
 from langchain_core.language_models.chat_models import BaseChatModel
@@ -227,15 +229,16 @@ class Agent(Generic[Context]):
 			self.settings.use_vision_for_planner = False
 
 		logger.info(
-			f'🧠 Starting a v{self.version} agent with main_model={self.model_name}'
+			f'🧠 Starting a browser-use agent with base_model={self.model_name}'
 			f'{" +tools" if self.tool_calling_method == "function_calling" else ""}'
 			f'{" +rawtools" if self.tool_calling_method == "raw" else ""}'
 			f'{" +vision" if self.settings.use_vision else ""}'
 			f'{" +memory" if self.enable_memory else ""}, '
-			f'planner_model={self.planner_model_name}'
+			f'{" +planner_model={self.planner_model_name}" if self.planner_model_name else ""}'
 			f'{" +reasoning" if self.settings.is_planner_reasoning else ""}'
 			f'{" +vision" if self.settings.use_vision_for_planner else ""}, '
-			f'extraction_model={getattr(self.settings.page_extraction_llm, "model_name", None)} '
+			f'extraction_model={getattr(self.settings.page_extraction_llm, "model_name", None)}, '
+			f'" on version v{self.version}"'
 		)
 
 		# Verify we can connect to the LLM
@@ -291,7 +294,7 @@ class Agent(Generic[Context]):
 		assert not (browser_profile and browser_context), 'Cannot provide both browser_profile and browser_context'
 		assert not (browser and browser_context), 'Cannot provide both browser and browser_context'
 		assert not (browser_session and browser_context), 'Cannot provide both browser_session and browser_context'
-
+		browser_profile = browser_profile or DEFAULT_BROWSER_PROFILE
 		self.browser_session = browser_session or BrowserSession(
 			profile=browser_profile, browser=browser, browser_context=browser_context
 		)
@@ -455,7 +458,7 @@ class Agent(Generic[Context]):
 	async def step(self, step_info: AgentStepInfo | None = None) -> None:
 		"""Execute one step of the task"""
 		logger.info(f'📍 Step {self.state.n_steps}')
-		state = None
+		browser_state_summary = None
 		model_output = None
 		result: list[ActionResult] = []
 		step_start_time = time.time()
@@ -615,7 +618,7 @@ class Agent(Generic[Context]):
 			if not result:
 				return
 
-			if state:
+			if browser_state_summary:
 				metadata = StepMetadata(
 					step_number=self.state.n_steps,
 					step_start_time=step_start_time,
