@@ -44,7 +44,9 @@ jobs:
             ${{ runner.os }}-playwright-
 
       - name: Install Playwright browser dependencies
-        run: playwright install --no-shell chromium
+        run: |
+          sudo playwright install-deps chromium --yes
+          playwright install --no-shell chromium
 
       - name: Install Xvfb for headed mode
         if: github.event.client_payload.script_args.headless == 'false'
