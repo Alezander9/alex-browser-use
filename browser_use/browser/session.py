@@ -315,9 +315,9 @@ class BrowserSession(BaseModel):
 				self.browser_context = self.browser.contexts[0]
 				logger.info(f'🌎 Using first browser_context available in user-provided browser: {self.browser_context}')
 			else:
-				self.browser_context = await self.browser.new_context(
-					**self.browser_profile.kwargs_for_new_context().model_dump()
-				)
+				new_context_kwargs = self.browser_profile.kwargs_for_new_context().model_dump()
+				logger.info(f'[DEBUG] Creating new context in existing browser with kwargs: {new_context_kwargs}')
+				self.browser_context = await self.browser.new_context(**new_context_kwargs)
 				storage_info = (
 					f' + loaded storage_state={len(self.browser_profile.storage_state.cookies) if self.browser_profile.storage_state else 0} cookies'
 					if self.browser_profile.storage_state
@@ -332,12 +332,13 @@ class BrowserSession(BaseModel):
 			)
 			if not self.browser_profile.user_data_dir:
 				# if no user_data_dir is provided, launch an incognito context with no persistent user_data_dir
-				self.browser = self.browser or await self.playwright.chromium.launch(
-					**self.browser_profile.kwargs_for_launch().model_dump()
-				)
-				self.browser_context = await self.browser.new_context(
-					**self.browser_profile.kwargs_for_new_context().model_dump()
-				)
+				launch_kwargs_obj = self.browser_profile.kwargs_for_launch()
+				logger.info(f'[DEBUG] Calling launch with args: {launch_kwargs_obj.args}')
+				logger.info(f'[DEBUG] launch headless: {launch_kwargs_obj.headless}')
+				self.browser = self.browser or await self.playwright.chromium.launch(**launch_kwargs_obj.model_dump())
+				new_context_kwargs_obj = self.browser_profile.kwargs_for_new_context()
+				logger.info(f'[DEBUG] Creating new_context (incognito) with args: {new_context_kwargs_obj.args}')
+				self.browser_context = await self.browser.new_context(**new_context_kwargs_obj.model_dump())
 			else:
 				self.browser_profile.prepare_user_data_dir()
 
@@ -373,9 +374,15 @@ class BrowserSession(BaseModel):
 						# self.browser_profile.prepare_user_data_dir()
 						break
 
+				launch_persistent_kwargs_obj = self.browser_profile.kwargs_for_launch_persistent_context()
+				logger.info(
+					f'[DEBUG] Calling launch_persistent_context with user_data_dir: {launch_persistent_kwargs_obj.user_data_dir}'
+				)
+				logger.info(f'[DEBUG] launch_persistent_context args: {launch_persistent_kwargs_obj.args}')
+				logger.info(f'[DEBUG] launch_persistent_context headless: {launch_persistent_kwargs_obj.headless}')
 				# if a user_data_dir is provided, launch a persistent context with that user_data_dir
 				self.browser_context = await self.playwright.chromium.launch_persistent_context(
-					**self.browser_profile.kwargs_for_launch_persistent_context().model_dump()
+					**launch_persistent_kwargs_obj.model_dump()
 				)
 			self.browser = self.browser_context.browser or self.browser
 			# ^ this can unfortunately be None ^ playwright does not give us a browser object when we use launch_persistent_context()
