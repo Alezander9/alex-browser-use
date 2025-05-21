@@ -410,8 +410,9 @@ class BrowserLaunchArgs(BaseModel):
 		populate_by_name=True,
 	)
 
-	env: dict[str, str | float | bool] = Field(
-		default_factory=dict, description='Extra environment variables to set when launching the browser.'
+	env: dict[str, str | float | bool] | None = Field(
+		default=None,
+		description='Extra environment variables to set when launching the browser. If None, inherits from the current process.',
 	)
 	executable_path: str | Path | None = Field(
 		default=None,
