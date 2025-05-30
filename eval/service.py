@@ -1655,6 +1655,9 @@ if __name__ == '__main__':
 		help='Model to use for planning (separate from main agent model)',
 	)
 	parser.add_argument('--planner-interval', type=int, default=1, help='Run planner every N steps (default: 1)')
+	parser.add_argument(
+		'--test-case', type=str, default='OnlineMind2Web', help='Name of the test case to fetch (default: OnlineMind2Web)'
+	)
 	args = parser.parse_args()
 
 	# Set up logging - Make sure logger is configured before use in fetch function
@@ -1710,14 +1713,13 @@ if __name__ == '__main__':
 		# --- Fetch Tasks from Server ---
 		CONVEX_URL = os.getenv('EVALUATION_TOOL_URL')
 		SECRET_KEY = os.getenv('EVALUATION_TOOL_SECRET_KEY')
-		TEST_CASE_NAME = 'OnlineMind2Web'  # Name of the test case to fetch
 
 		if not CONVEX_URL or not SECRET_KEY:
 			logger.error('Error: EVALUATION_TOOL_URL or EVALUATION_TOOL_SECRET_KEY environment variables not set.')
 			exit(1)  # Exit if config is missing
 
-		logger.info(f"Attempting to fetch task list '{TEST_CASE_NAME}' from server...")
-		fetched_task_data = fetch_tasks_from_server(CONVEX_URL, SECRET_KEY, TEST_CASE_NAME)
+		logger.info(f"Attempting to fetch task list '{args.test_case}' from server...")
+		fetched_task_data = fetch_tasks_from_server(CONVEX_URL, SECRET_KEY, args.test_case)
 
 		if fetched_task_data is None:
 			logger.error('Failed to fetch tasks from the server. Exiting.')
@@ -1746,7 +1748,7 @@ if __name__ == '__main__':
 			'end_index': args.end,
 			'headless': args.headless,
 			'use_vision': not args.no_vision,
-			'task_source': TEST_CASE_NAME,
+			'task_source': args.test_case,
 			'llm_judge': args.eval_model,
 		}
 
@@ -1759,6 +1761,7 @@ if __name__ == '__main__':
 			'evalGroup': args.eval_group,
 			'developerId': args.developer_id,
 			'totalTasks': len(tasks) - args.start if args.end is None else args.end - args.start,
+			'testCaseId': args.test_case,
 			'additionalData': additional_run_data,
 		}
 
