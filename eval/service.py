@@ -633,15 +633,16 @@ async def reformat_agent_history(
 
 
 class Task:
-	def __init__(self, task_id, confirmed_task, website, reference_length, level):
+	def __init__(self, task_id, confirmed_task, website=None, reference_length=None, level=None, cluster_id=None):
 		self.task_id = task_id
 		self.confirmed_task = confirmed_task
 		self.website = website
 		self.reference_length = reference_length
 		self.level = level
+		self.cluster_id = cluster_id
 
 	def __str__(self):
-		return f'Task(task_id={self.task_id}, confirmed_task={self.confirmed_task}, website={self.website}, reference_length={self.reference_length}, level={self.level})'
+		return f'Task(task_id={self.task_id}, confirmed_task={self.confirmed_task}, website={self.website}, reference_length={self.reference_length}, level={self.level}, cluster_id={self.cluster_id})'
 
 	def __repr__(self):
 		return self.__str__()
@@ -822,6 +823,7 @@ class TaskResult:
 			'taskWebsite': task.website,
 			'taskReferenceLength': task.reference_length,
 			'taskLevel': task.level,
+			'taskClusterId': task.cluster_id,
 			'actionHistory': [],
 			'finalResultResponse': 'None',
 			'selfReportCompleted': False,
@@ -1730,7 +1732,7 @@ if __name__ == '__main__':
 			logger.info(f'Successfully loaded {len(tasks)} tasks from the server.')
 		except TypeError as e:
 			logger.error(
-				f'Error creating Task objects from fetched data. Ensure the data structure matches Task requirements (task_id, confirmed_task, etc.). Error: {type(e).__name__}: {e}'
+				f'Error creating Task objects from fetched data. Ensure the data structure includes required fields (task_id, confirmed_task). Optional fields: website, reference_length, level, cluster_id. Error: {type(e).__name__}: {e}'
 			)
 			logger.error(f'First item in fetched data: {fetched_task_data[0] if fetched_task_data else "None"}')
 			exit(1)
