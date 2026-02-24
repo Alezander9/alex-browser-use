@@ -1019,3 +1019,23 @@ For common development tasks
 uv run examples/simple.py
 ```
 </browser_use_docs>
+
+## Cursor Cloud specific instructions
+
+### Environment overview
+- **Python**: 3.12.x (system), venv at `.venv`
+- **Package manager**: `uv` (installed to `~/.local/bin`)
+- **Browser**: Google Chrome (headless, auto-detected at `/usr/local/bin/google-chrome`). Docker mode flags (`--no-sandbox`, etc.) are applied automatically because `/.dockerenv` exists.
+- **No external services required**: all CI tests use `pytest-httpserver` for local HTTP and mock LLMs via `conftest.py`.
+
+### Running commands
+- Standard dev commands are in `CLAUDE.md` and `bin/` scripts; refer to those rather than duplicating here.
+- Lint: `uv run ruff check --fix && uv run ruff format` then `uv run pyright`
+- Tests: `uv run pytest -vxs tests/ci` (full CI suite, ~5-8 min)
+- Quick lint shortcut: `./bin/lint.sh --quick` (skips pyright)
+
+### Gotchas
+- `session.start()` may block for 10-30 s on first run while extensions are downloaded/cached. Wrap with `asyncio.wait_for(session.start(), timeout=30)` in ad-hoc scripts if needed; tests handle this via session-scoped fixtures.
+- One CI test (`tests/ci/interactions/test_radio_buttons.py`) requires `BROWSER_USE_API_KEY` (it uses a real LLM). Skip it with `--ignore=tests/ci/interactions/test_radio_buttons.py` when no API key is available.
+- External network access may be restricted. CI tests work because they use `pytest-httpserver` (localhost). If writing new tests or running examples that hit remote URLs, use local httpserver fixtures.
+- The `uv sync` deprecation warning about `tool.uv.dev-dependencies` is harmless and can be ignored.
